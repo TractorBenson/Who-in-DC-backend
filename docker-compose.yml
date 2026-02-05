@@ -7,7 +7,7 @@ services:
     # CHANGE `yourorg` → your GitHub org/user
     # CHANGE `<repo_name>` → your repo name (or with -frontend suffix)
     # Keep the tag part as ${TAG:-latest} so you can override with `TAG=<sha> docker compose up -d`
-    image: ghcr.io/20age1million/who-in-dc-backend:${TAG:-latest}
+    image: ghcr.io/tractorbenson/who-in-dc-backend:${TAG:-latest}
 
     ports:
       # host_port:container_port
