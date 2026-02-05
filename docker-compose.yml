@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/20age1million/whoindcbackend:${TAG:-latest}
+    image: ghcr.io/20age1million/who-in-dc-backend:${TAG:-latest}
     ports:
       - "3009:8000"
     volumes:
