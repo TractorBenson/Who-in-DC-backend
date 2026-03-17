@@ -122,3 +122,4 @@ Response:
 - `events`: append-only presence event stream
 - `active`: current online index (`user_id -> latest enter event id`)
 - Existing legacy format (`{"dc": [...]}`) is auto-migrated in memory and saved with schema v1 on next write.
+
