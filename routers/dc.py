@@ -41,7 +41,8 @@ class HeatmapSummaryOut(BaseModel):
 
 
 class HeatmapOut(BaseModel):
-    range: str
+    month: str
+    available_months: list[str]
     bucket: str
     generated_at: str
     cells: list[HeatmapCellOut]
@@ -81,7 +82,7 @@ def api_leaderboard(
 
 @router.get("/heatmap", response_model=HeatmapOut)
 def api_heatmap(
-    range: str = Query(default="7d", pattern="^(7d|30d)$"),
-    bucket: str = Query(default="hour", pattern="^hour$"),
+    month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
+    bucket: str = Query(default="day", pattern="^day$"),
 ):
-    return get_heatmap(range_name=range, bucket=bucket)
+    return get_heatmap(month=month, bucket=bucket)

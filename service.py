@@ -31,17 +31,28 @@ def _window_for_leaderboard(range_name: str, now_local: datetime) -> tuple[datet
     return start, now_local
 
 
-def _window_for_heatmap(range_name: str, now_local: datetime) -> tuple[datetime, datetime]:
-    if range_name == "7d":
-        days = 7
-    elif range_name == "30d":
-        days = 30
+def _window_for_month(month: str | None, now_local: datetime) -> tuple[str, datetime, datetime]:
+    if month:
+        try:
+            year_str, month_str = month.split("-")
+            year = int(year_str)
+            month_num = int(month_str)
+            if month_num < 1 or month_num > 12:
+                raise ValueError
+        except ValueError:
+            raise ValueError("month must be in YYYY-MM format")
     else:
-        raise ValueError("range must be one of: 7d, 30d")
+        year = now_local.year
+        month_num = now_local.month
+        month = f"{year:04d}-{month_num:02d}"
 
-    end = now_local
-    start = datetime.combine((end - timedelta(days=days - 1)).date(), time.min, tzinfo=LOCAL_TZ)
-    return start, end
+    start = datetime(year, month_num, 1, tzinfo=LOCAL_TZ)
+    if month_num == 12:
+        next_month_start = datetime(year + 1, 1, 1, tzinfo=LOCAL_TZ)
+    else:
+        next_month_start = datetime(year, month_num + 1, 1, tzinfo=LOCAL_TZ)
+    end = min(now_local, next_month_start)
+    return month, start, end
 
 
 def _build_intervals(events: list[PresenceEvent], window_end_local: datetime) -> list[tuple[str, datetime, datetime]]:
@@ -169,20 +180,22 @@ def get_leaderboard(range_name: str = "today", limit: int = 50) -> dict:
     return {"range": range_name, "generated_at": now_local.isoformat(), "items": rows}
 
 
-def get_heatmap(range_name: str = "7d", bucket: str = "hour") -> dict:
-    if bucket != "hour":
-        raise ValueError("bucket must be hour")
+def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
+    if bucket != "day":
+        raise ValueError("bucket must be day")
 
     store = load_store()
     now_local = datetime.now(LOCAL_TZ)
-    window_start, window_end = _window_for_heatmap(range_name, now_local)
+    month, window_start, window_end = _window_for_month(month, now_local)
 
     intervals = _build_intervals(store.events, window_end)
+    available_months = sorted({_to_local(_parse_iso(e.at)).strftime("%Y-%m") for e in store.events}, reverse=True)
 
-    buckets: dict[tuple[str, int], float] = defaultdict(float)
+    daily_total_seconds: dict[str, float] = defaultdict(float)
+    daily_users: dict[str, set[str]] = defaultdict(set)
     timeline_points: list[tuple[datetime, int]] = []
 
-    for _user_id, start_local, end_local in intervals:
+    for user_id, start_local, end_local in intervals:
         clipped_start = max(start_local, window_start)
         clipped_end = min(end_local, window_end)
         if clipped_end <= clipped_start:
@@ -191,14 +204,15 @@ def get_heatmap(range_name: str = "7d", bucket: str = "hour") -> dict:
         timeline_points.append((clipped_start, 1))
         timeline_points.append((clipped_end, -1))
 
-        cursor = clipped_start.replace(minute=0, second=0, microsecond=0)
+        cursor = datetime.combine(clipped_start.date(), time.min, tzinfo=LOCAL_TZ)
         while cursor < clipped_end:
-            next_hour = cursor + timedelta(hours=1)
-            seconds = _overlap_seconds(clipped_start, clipped_end, cursor, next_hour)
+            next_day = cursor + timedelta(days=1)
+            seconds = _overlap_seconds(clipped_start, clipped_end, cursor, next_day)
             if seconds > 0:
-                key = (cursor.date().isoformat(), cursor.hour)
-                buckets[key] += seconds
-            cursor = next_hour
+                day_key = cursor.date().isoformat()
+                daily_total_seconds[day_key] += seconds
+                daily_users[day_key].add(user_id)
+            cursor = next_day
 
     cells = []
     hottest_slot = None
@@ -206,13 +220,14 @@ def get_heatmap(range_name: str = "7d", bucket: str = "hour") -> dict:
 
     day = window_start.date()
     while day <= window_end.date():
-        for hour in range(24):
-            key = (day.isoformat(), hour)
-            value = round(buckets.get(key, 0.0) / 3600.0, 3)
-            cells.append({"date": key[0], "hour": key[1], "value": value})
+        day_key = day.isoformat()
+        users_count = len(daily_users.get(day_key, set()))
+        if users_count > 0:
+            value = round((daily_total_seconds[day_key] / 3600.0) / users_count, 3)
+            cells.append({"date": day_key, "hour": 0, "value": value})
             if value > hottest_value:
                 hottest_value = value
-                hottest_slot = f"{key[0]} {hour:02d}:00-{(hour + 1) % 24:02d}:00"
+                hottest_slot = day_key
         day += timedelta(days=1)
 
     active = 0
@@ -228,7 +243,8 @@ def get_heatmap(range_name: str = "7d", bucket: str = "hour") -> dict:
     }
 
     return {
-        "range": range_name,
+        "month": month,
+        "available_months": available_months,
         "bucket": bucket,
         "generated_at": now_local.isoformat(),
         "cells": cells,
