@@ -2,11 +2,12 @@ from collections import defaultdict
 from datetime import datetime, time, timedelta
 from math import ceil
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from data import load_store, save_store
 from models import EventType, PresenceEvent
 
-LOCAL_TZ = datetime.now().astimezone().tzinfo
+LOCAL_TZ = ZoneInfo("America/Toronto")
 
 
 def _parse_iso(ts: str) -> datetime:
@@ -105,7 +106,7 @@ def enter_dc(name: str) -> None:
         id=str(uuid4()),
         user_id=user_id,
         type=EventType.ENTER,
-        at=datetime.now().astimezone().isoformat(),
+        at=datetime.now(LOCAL_TZ).isoformat(),
         name_snapshot=name,
     )
     store.events.append(event)
@@ -123,7 +124,7 @@ def leave_dc(name: str) -> None:
         id=str(uuid4()),
         user_id=user_id,
         type=EventType.LEAVE,
-        at=datetime.now().astimezone().isoformat(),
+        at=datetime.now(LOCAL_TZ).isoformat(),
         name_snapshot=store.users.get(user_id, name),
     )
     store.events.append(event)
@@ -133,7 +134,7 @@ def leave_dc(name: str) -> None:
 
 def get_leaderboard(range_name: str = "today", limit: int = 50) -> dict:
     store = load_store()
-    now_local = datetime.now().astimezone()
+    now_local = datetime.now(LOCAL_TZ)
     window_start, window_end = _window_for_leaderboard(range_name, now_local)
 
     durations = defaultdict(float)
@@ -173,7 +174,7 @@ def get_heatmap(range_name: str = "7d", bucket: str = "hour") -> dict:
         raise ValueError("bucket must be hour")
 
     store = load_store()
-    now_local = datetime.now().astimezone()
+    now_local = datetime.now(LOCAL_TZ)
     window_start, window_end = _window_for_heatmap(range_name, now_local)
 
     intervals = _build_intervals(store.events, window_end)
