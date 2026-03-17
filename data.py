@@ -1,70 +1,73 @@
 import json
-import logging
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
 
-logger = logging.getLogger("widc")
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+from models import EventType, PresenceEvent, PresenceStore
 
 DATA_DIR = Path("/app/data")
 DATA_FILE = DATA_DIR / "data.json"
 
-def _load_data() -> dict:
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _default_store() -> PresenceStore:
+    now = _now_iso()
+    return PresenceStore(created_at=now, updated_at=now)
+
+
+def _normalize_name(name: str) -> str:
+    return name.strip().lower()
+
+
+def _migrate_legacy(raw: dict) -> PresenceStore:
+    now = _now_iso()
+    store = PresenceStore(created_at=now, updated_at=now)
+
+    for person in raw.get("dc", []):
+        name = str(person.get("name", "")).strip()
+        if not name:
+            continue
+
+        user_id = _normalize_name(name)
+        entered_at = str(person.get("entered_at", now))
+        event_id = str(uuid4())
+        store.users[user_id] = name
+        store.events.append(
+            PresenceEvent(
+                id=event_id,
+                user_id=user_id,
+                type=EventType.ENTER,
+                at=entered_at,
+                name_snapshot=name,
+            )
+        )
+        store.active[user_id] = event_id
+
+    store.updated_at = now
+    return store
+
+
+def load_store() -> PresenceStore:
     if not DATA_FILE.exists():
-        return {"dc": []}
+        return _default_store()
 
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        raw = json.load(f)
+
+    if isinstance(raw, dict) and raw.get("schema_version") == 1:
+        return PresenceStore.model_validate(raw)
+
+    return _migrate_legacy(raw if isinstance(raw, dict) else {})
 
 
-def _save_data(data: dict) -> None:
+def save_store(store: PresenceStore) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    store.updated_at = _now_iso()
 
-    
-
-def get_people() -> list[dict]:
-    people_list = _load_data()["dc"]
-    return people_list
-
-
-def enter_dc(name: str) -> None:
-    logger.info("Entering DC: %s", name)
-
-    data = _load_data()
-    people_list = data["dc"]
-    entered_at = datetime.now(timezone.utc).isoformat()
-
-    for person in people_list:
-        if person["name"] == name:
-            logger.info("Person %s already in DC", name)
-            return
-    
-    data["dc"].append({
-        "name": name,
-        "entered_at": entered_at
-    })
-
-    _save_data(data)
-
-    logger.info("Person %s added to the list", name)
-    
-
-def leave_dc(name: str) -> None:
-    logger.info("Leaving DC: %s", name)
-
-    data = _load_data()
-    people_list = data["dc"]
-
-    for i, person in enumerate(people_list):
-        if person["name"] == name:
-            data["dc"].pop(i)
-            _save_data(data)
-            logger.info("Person %s removed from the list", name)
-            return
-    else:
-        logger.info("Person %s not found in the list", name)
+    temp_file = DATA_FILE.with_suffix(".tmp")
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(store.model_dump(), f, ensure_ascii=False, indent=2)
+    temp_file.replace(DATA_FILE)
