@@ -8,7 +8,7 @@ from data import load_store, save_store
 from models import EventType, PresenceEvent
 
 LOCAL_TZ = ZoneInfo("America/Toronto")
-COLOR_MAP = ["#d3d3d3", "#00FF00", "#2EFF2E", "#5CFF5C", "#8AFF8A"]
+COLOR_MAP = ["#d3d3d3", "#3ACF3A", "#5FD85F", "#84E184", "#A9EAA9"]
 
 
 def _parse_iso(ts: str) -> datetime:
@@ -52,8 +52,7 @@ def _window_for_month(month: str | None, now_local: datetime) -> tuple[str, date
         next_month_start = datetime(year + 1, 1, 1, tzinfo=LOCAL_TZ)
     else:
         next_month_start = datetime(year, month_num + 1, 1, tzinfo=LOCAL_TZ)
-    end = min(now_local, next_month_start)
-    return month, start, end
+    return month, start, next_month_start
 
 
 def _build_intervals(events: list[PresenceEvent], window_end_local: datetime) -> list[tuple[str, datetime, datetime]]:
@@ -196,8 +195,9 @@ def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
     store = load_store()
     now_local = datetime.now(LOCAL_TZ)
     month, window_start, window_end = _window_for_month(month, now_local)
+    stats_end = min(now_local, window_end)
 
-    intervals = _build_intervals(store.events, window_end)
+    intervals = _build_intervals(store.events, stats_end)
     available_months = sorted({_to_local(_parse_iso(e.at)).strftime("%Y-%m") for e in store.events}, reverse=True)
 
     daily_total_seconds: dict[str, float] = defaultdict(float)
@@ -231,7 +231,7 @@ def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
     active_day_values: list[float] = []
 
     day = window_start.date()
-    while day <= window_end.date():
+    while day < window_end.date():
         day_key = day.isoformat()
         users_count = len(daily_users.get(day_key, set()))
         value = 0.0
