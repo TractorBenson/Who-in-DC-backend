@@ -32,6 +32,7 @@ class HeatmapCellOut(BaseModel):
     date: str
     hour: int
     value: float
+    color: str
 
 
 class HeatmapSummaryOut(BaseModel):

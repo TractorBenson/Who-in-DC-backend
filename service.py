@@ -8,6 +8,7 @@ from data import load_store, save_store
 from models import EventType, PresenceEvent
 
 LOCAL_TZ = ZoneInfo("America/Toronto")
+COLOR_MAP = ["#b7ebc0", "#d9f2b4", "#fef3b0", "#fbc98b", "#f4a3a3"]
 
 
 def _parse_iso(ts: str) -> datetime:
@@ -89,6 +90,22 @@ def _get_or_create_user_id(users: dict[str, str], name: str) -> str:
     if user_id not in users:
         users[user_id] = name
     return user_id
+
+
+def _value_thresholds(values: list[float]) -> list[float]:
+    if not values:
+        return []
+    sorted_values = sorted(values)
+    size = len(sorted_values)
+    return [sorted_values[max(0, ceil(size * i / 5) - 1)] for i in range(1, 5)]
+
+
+def _value_to_color(value: float, thresholds: list[float]) -> str:
+    level = 0
+    for threshold in thresholds:
+        if value > threshold:
+            level += 1
+    return COLOR_MAP[min(level, len(COLOR_MAP) - 1)]
 
 
 def get_people() -> list[dict]:
@@ -219,18 +236,25 @@ def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
     cells = []
     hottest_slot = None
     hottest_value = -1.0
+    active_day_values: list[float] = []
 
     day = window_start.date()
     while day <= window_end.date():
         day_key = day.isoformat()
         users_count = len(daily_users.get(day_key, set()))
+        value = 0.0
         if users_count > 0:
             value = round((daily_total_seconds[day_key] / 3600.0) / users_count, 3)
-            cells.append({"date": day_key, "hour": 0, "value": value})
+            active_day_values.append(value)
             if value > hottest_value:
                 hottest_value = value
                 hottest_slot = day_key
+        cells.append({"date": day_key, "hour": 0, "value": value})
         day += timedelta(days=1)
+
+    thresholds = _value_thresholds([cell["value"] for cell in cells])
+    for cell in cells:
+        cell["color"] = _value_to_color(cell["value"], thresholds)
 
     active = 0
     peak_online = 0
@@ -240,7 +264,7 @@ def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
 
     summary = {
         "hottest_slot": hottest_slot,
-        "avg_online": round(sum(cell["value"] for cell in cells) / len(cells), 3) if cells else 0.0,
+        "avg_online": round(sum(active_day_values) / len(active_day_values), 3) if active_day_values else 0.0,
         "peak_online": max(peak_online, ceil(hottest_value)) if hottest_value > 0 else 0,
     }
 
