@@ -92,6 +92,7 @@ def _get_or_create_user_id(users: dict[str, str], name: str) -> str:
     return user_id
 
 def _value_to_color(value: float) -> str:
+    value = round(value, 2)
     if value <= 0: return COLOR_MAP[0]
     elif value < 1: return COLOR_MAP[1]
     elif value < 3: return COLOR_MAP[2]
