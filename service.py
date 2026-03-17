@@ -8,7 +8,7 @@ from data import load_store, save_store
 from models import EventType, PresenceEvent
 
 LOCAL_TZ = ZoneInfo("America/Toronto")
-COLOR_MAP = ["#d3d3d3", "#57d364", "#2da043", "#186c2d", "#033a16"]
+COLOR_MAP = ["#d3d3d3", "#00FF00", "#2EFF2E", "#5CFF5C", "#8AFF8A"]
 
 
 def _parse_iso(ts: str) -> datetime:
