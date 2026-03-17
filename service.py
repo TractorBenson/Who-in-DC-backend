@@ -8,7 +8,7 @@ from data import load_store, save_store
 from models import EventType, PresenceEvent
 
 LOCAL_TZ = ZoneInfo("America/Toronto")
-COLOR_MAP = ["#b7ebc0", "#d9f2b4", "#fef3b0", "#fbc98b", "#f4a3a3"]
+COLOR_MAP = ["#d3d3d3", "#57d364", "#2da043", "#186c2d", "#033a16"]
 
 
 def _parse_iso(ts: str) -> datetime:
@@ -91,21 +91,12 @@ def _get_or_create_user_id(users: dict[str, str], name: str) -> str:
         users[user_id] = name
     return user_id
 
-
-def _value_thresholds(values: list[float]) -> list[float]:
-    if not values:
-        return []
-    sorted_values = sorted(values)
-    size = len(sorted_values)
-    return [sorted_values[max(0, ceil(size * i / 5) - 1)] for i in range(1, 5)]
-
-
-def _value_to_color(value: float, thresholds: list[float]) -> str:
-    level = 0
-    for threshold in thresholds:
-        if value > threshold:
-            level += 1
-    return COLOR_MAP[min(level, len(COLOR_MAP) - 1)]
+def _value_to_color(value: float) -> str:
+    if value <= 0: return COLOR_MAP[0]
+    elif value < 1: return COLOR_MAP[1]
+    elif value < 3: return COLOR_MAP[2]
+    elif value < 6: return COLOR_MAP[3]
+    else: return COLOR_MAP[4]
 
 
 def get_people() -> list[dict]:
@@ -252,9 +243,8 @@ def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
         cells.append({"date": day_key, "hour": 0, "value": value})
         day += timedelta(days=1)
 
-    thresholds = _value_thresholds([cell["value"] for cell in cells])
     for cell in cells:
-        cell["color"] = _value_to_color(cell["value"], thresholds)
+        cell["color"] = _value_to_color(cell["value"])
 
     active = 0
     peak_online = 0

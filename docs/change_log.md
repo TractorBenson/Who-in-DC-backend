@@ -1,4 +1,7 @@
 # Change Log for WiDC
+## v2.2 2026-03-17
+- Changed heatmap color algorithm to fixed intervals, changed colors
+
 ## v2.1 2026-03-16
 - Updated heatmap colors into levels, made beter logics and visualization
 
