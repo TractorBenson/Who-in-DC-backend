@@ -193,6 +193,7 @@ def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
 
     daily_total_seconds: dict[str, float] = defaultdict(float)
     daily_users: dict[str, set[str]] = defaultdict(set)
+    daily_user_seconds: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     timeline_points: list[tuple[datetime, int]] = []
 
     for user_id, start_local, end_local in intervals:
@@ -212,6 +213,7 @@ def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
                 day_key = cursor.date().isoformat()
                 daily_total_seconds[day_key] += seconds
                 daily_users[day_key].add(user_id)
+                daily_user_seconds[day_key][user_id] += seconds
             cursor = next_day
 
     cells = []
@@ -242,11 +244,25 @@ def get_heatmap(month: str | None = None, bucket: str = "day") -> dict:
         "peak_online": max(peak_online, ceil(hottest_value)) if hottest_value > 0 else 0,
     }
 
+    day_details: dict[str, list[dict]] = {}
+    for day_key, user_seconds in daily_user_seconds.items():
+        rows = [
+            {
+                "name": store.users.get(user_id, user_id),
+                "duration_minutes": int(seconds // 60),
+            }
+            for user_id, seconds in user_seconds.items()
+            if seconds > 0
+        ]
+        rows.sort(key=lambda item: (-item["duration_minutes"], item["name"]))
+        day_details[day_key] = rows
+
     return {
         "month": month,
         "available_months": available_months,
         "bucket": bucket,
         "generated_at": now_local.isoformat(),
         "cells": cells,
+        "day_details": day_details,
         "summary": summary,
     }

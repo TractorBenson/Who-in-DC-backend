@@ -40,12 +40,18 @@ class HeatmapSummaryOut(BaseModel):
     peak_online: int
 
 
+class HeatmapDayDetailOut(BaseModel):
+    name: str
+    duration_minutes: int
+
+
 class HeatmapOut(BaseModel):
     month: str
     available_months: list[str]
     bucket: str
     generated_at: str
     cells: list[HeatmapCellOut]
+    day_details: dict[str, list[HeatmapDayDetailOut]]
     summary: HeatmapSummaryOut
 
 
