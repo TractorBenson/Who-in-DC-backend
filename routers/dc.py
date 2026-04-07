@@ -55,7 +55,6 @@ class HeatmapOut(BaseModel):
     day_details: dict[str, list[HeatmapDayDetailOut]]
     summary: HeatmapSummaryOut
 
-
 @router.get("/get-people", response_model=list[PersonOut])
 def api_get_people():
     return get_people()

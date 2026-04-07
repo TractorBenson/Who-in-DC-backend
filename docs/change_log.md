@@ -1,4 +1,7 @@
 # Change Log for WiDC
+## v2.2.1 2026-04-7
+- add api timer to inspect reaction time
+
 ## v2.2 2026-03-17
 - Changed heatmap color algorithm to fixed intervals, changed colors
 
